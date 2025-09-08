@@ -3,7 +3,7 @@ import * as authService from "../services/auth.service";
 
 export const register = async (req: Request, res: Response) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, role } = req.body;
     
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Name, email and password are required' });
@@ -16,8 +16,10 @@ export const register = async (req: Request, res: Response) => {
     if (!email.includes('@')) {
       return res.status(400).json({ message: 'Invalid email' });
     }
-    
-    const user = await authService.register(name, email, password);
+
+    const validRole = role.toLowerCase() === 'admin' ? 'ADMIN' : 'USER';
+
+    const user = await authService.register(name, email, password, validRole);
     const { password: _, ...userWithoutPassword } = user;
     
     res.status(201).json(userWithoutPassword);
