@@ -5,11 +5,16 @@ import { AuthRequest } from "../middlewares/auth.middleware";
 export const getBooks = async (req: Request, res: Response) => {
   const books = await bookService.getBooks();
   res.json(books);
-};
+};  
+
+export const getBookById = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const book = await bookService.getBookById(String(id));
+}
 
 export const addBook = async (req: Request, res: Response) => {
-  const { title, author } = req.body;
-  const book = await bookService.addBook(title, author);
+  const { title, author, stock } = req.body;
+  const book = await bookService.addBook(title, author, stock);
   res.status(201).json(book);
 };
 
@@ -24,8 +29,8 @@ export const searchBooks = async (req: Request, res: Response) => {
 
 export const updateBook = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { title, author } = req.body;
-  const book = await bookService.updateBook(String(id), title, author);
+  const { title, author, stock} = req.body;
+  const book = await bookService.updateBook(String(id), title, author, stock);
   res.json(book);
 };
 

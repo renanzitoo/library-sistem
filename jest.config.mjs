@@ -19,9 +19,6 @@ export default {
     "!src/**/*.d.ts",
     "!src/**/index.ts"
   ],
-  moduleNameMapper: {
-    "^../../src/config/prisma$": "<rootDir>/tests/__mocks__/prisma.ts"
-  },
   testPathIgnorePatterns: [
     "/node_modules/",
     "/dist/"
@@ -29,5 +26,6 @@ export default {
   verbose: true,
   forceExit: true,
   detectOpenHandles: true,
-  setupFiles: ["<rootDir>/tests/env.setup.js"]
+  setupFiles: ["<rootDir>/tests/env.setup.js"],
+  clearMocks: true
 };

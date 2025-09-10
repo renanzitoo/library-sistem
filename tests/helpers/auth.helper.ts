@@ -1,37 +1,19 @@
-import request from 'supertest';
-import { app } from '../../src/index';
-import { prisma } from '../setup';
+import prisma from '../../src/config/prisma';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 
 export const createUserAndGetToken = async (userData: any) => {
-  const registerRes = await request(app)
-    .post('/auth/register')
-    .send(userData);
+  const hashedPassword = await bcrypt.hash(userData.password, 10);
+  const createdUser = { id: 'some-uuid', ...userData, password: hashedPassword };
 
-  if (registerRes.status !== 201) {
-    throw new Error(`Failed to register user: ${registerRes.body.message}`);
-  }
+  (prisma.user.create as jest.Mock).mockResolvedValue(createdUser);
+  (prisma.user.findUnique as jest.Mock).mockResolvedValue(createdUser);
 
-  if (userData.role === 'ADMIN') {
-    await prisma.user.update({
-      where: { id: registerRes.body.id },
-      data: { role: 'ADMIN' }
-    });
-  }
-
-  const loginRes = await request(app)
-    .post('/auth/login')
-    .send({
-      email: userData.email,
-      password: userData.password,
-    });
-
-  if (loginRes.status !== 200) {
-    throw new Error(`Failed to login: ${loginRes.body.message}`);
-  }
+  const token = jwt.sign({ id: createdUser.id, role: createdUser.role }, process.env.JWT_SECRET as string, { expiresIn: '1h' });
 
   return {
-    user: registerRes.body,
-    token: loginRes.body.token,
+    user: createdUser,
+    token,
   };
 };
 

@@ -4,11 +4,11 @@ export const getBooks = () => prisma.book.findMany();
 
 export const getBookById = (id: string) => prisma.book.findUnique({ where: { id } });
 
-export const addBook = (title: string, author: string) =>
-  prisma.book.create({ data: { title, author } });
+export const addBook = (title: string, author: string, stock: number) =>
+  prisma.book.create({ data: { title, author, stock } });
 
-export const updateBook = (id: string, title: string, author: string) =>
-  prisma.book.update({ where: { id }, data: { title, author } });
+export const updateBook = (id: string, title: string, author: string, stock: number) =>
+  prisma.book.update({ where: { id }, data: { title, author, stock } });
 
 export const searchBooks = (query: string) =>
   prisma.book.findMany({

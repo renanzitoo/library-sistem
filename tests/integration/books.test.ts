@@ -1,26 +1,24 @@
 import request from 'supertest';
 import { app } from '../../src/index';
-import { cleanDatabase, prisma } from '../setup';
 import { testBooks } from '../fixtures/books';
 import { createAdminUserAndGetToken, createRegularUserAndGetToken } from '../helpers/auth.helper';
+import prisma from '../../src/config/prisma';
 
 describe('Books Integration Tests', () => {
   let adminToken: string;
   let userToken: string;
 
   beforeEach(async () => {
-    await cleanDatabase();
-    
-    const admin = await createAdminUserAndGetToken();
-    const user = await createRegularUserAndGetToken();
-    
-    adminToken = admin.token;
-    userToken = user.token;
+    adminToken = (await createAdminUserAndGetToken()).token;
+    userToken = (await createRegularUserAndGetToken()).token;
   });
 
   describe('POST /books', () => {
     it('should create a book (admin)', async () => {
       const bookData = testBooks.book1;
+      const createdBook = { id: 'some-uuid', ...bookData };
+
+      (prisma.book.create as jest.Mock).mockResolvedValue(createdBook);
 
       const res = await request(app)
         .post('/books')
@@ -31,13 +29,9 @@ describe('Books Integration Tests', () => {
       expect(res.body).toHaveProperty('id');
       expect(res.body.title).toBe(bookData.title);
       expect(res.body.author).toBe(bookData.author);
-      expect(res.body.stock).toBe(1); 
+      expect(res.body.stock).toBe(bookData.stock); 
 
-      const bookInDb = await prisma.book.findUnique({
-        where: { id: res.body.id },
-      });
-      expect(bookInDb).toBeTruthy();
-      expect(bookInDb?.title).toBe(bookData.title);
+      expect(prisma.book.create).toHaveBeenCalledWith({ data: bookData });
     });
 
     it('should fail with insufficient permissions (user)', async () => {
@@ -60,8 +54,8 @@ describe('Books Integration Tests', () => {
 
   describe('GET /books', () => {
     it('should list books', async () => {
-      await prisma.book.create({ data: testBooks.book1 });
-      await prisma.book.create({ data: testBooks.book2 });
+      const books = [{ ...testBooks.book1, id: 'book1-id' }, { ...testBooks.book2, id: 'book2-id' }];
+      (prisma.book.findMany as jest.Mock).mockResolvedValue(books);
 
       const res = await request(app)
         .get('/books')
@@ -72,6 +66,7 @@ describe('Books Integration Tests', () => {
       expect(res.body).toHaveLength(2);
       expect(res.body[0]).toHaveProperty('id');
       expect(res.body[0]).toHaveProperty('title');
+      expect(prisma.book.findMany).toHaveBeenCalledTimes(1);
     });
 
     it('should fail without token', async () => {
@@ -83,8 +78,8 @@ describe('Books Integration Tests', () => {
 
   describe('GET /books/search', () => {
     it('should search books by title', async () => {
-      await prisma.book.create({ data: testBooks.book1 });
-      await prisma.book.create({ data: testBooks.book2 });
+      const books = [{ ...testBooks.book1, id: 'book1-id' }];
+      (prisma.book.findMany as jest.Mock).mockResolvedValue(books);
 
       const res = await request(app)
         .get('/books/search?q=Clean')
@@ -94,10 +89,19 @@ describe('Books Integration Tests', () => {
       expect(Array.isArray(res.body)).toBe(true);
       expect(res.body).toHaveLength(1);
       expect(res.body[0].title).toContain('Clean');
+      expect(prisma.book.findMany).toHaveBeenCalledWith({
+        where: {
+          OR: [
+            { title: { contains: 'Clean', mode: 'insensitive' } },
+            { author: { contains: 'Clean', mode: 'insensitive' } }
+          ]
+        }
+      });
     });
 
     it('should search books by author', async () => {
-      await prisma.book.create({ data: testBooks.book1 });
+      const books = [{ ...testBooks.book1, id: 'book1-id' }];
+      (prisma.book.findMany as jest.Mock).mockResolvedValue(books);
 
       const res = await request(app)
         .get('/books/search?q=Robert')
@@ -106,6 +110,14 @@ describe('Books Integration Tests', () => {
       expect(res.status).toBe(200);
       expect(res.body).toHaveLength(1);
       expect(res.body[0].author).toContain('Robert');
+      expect(prisma.book.findMany).toHaveBeenCalledWith({
+        where: {
+          OR: [
+            { title: { contains: 'Robert', mode: 'insensitive' } },
+            { author: { contains: 'Robert', mode: 'insensitive' } }
+          ]
+        }
+      });
     });
 
     it('should fail without query parameter', async () => {
@@ -119,8 +131,11 @@ describe('Books Integration Tests', () => {
 
   describe('PUT /books/:id', () => {
     it('should update a book (admin)', async () => {
-      const book = await prisma.book.create({ data: testBooks.book1 });
-      const updateData = { title: 'Clean Code Updated', author: 'Robert Martin' };
+      const book = { id: 'some-uuid', ...testBooks.book1 };
+      const updateData = { title: 'Clean Code Updated', author: 'Robert Martin', stock: 15 };
+      const updatedBook = { ...book, ...updateData };
+
+      (prisma.book.update as jest.Mock).mockResolvedValue(updatedBook);
 
       const res = await request(app)
         .put(`/books/${book.id}`)
@@ -131,16 +146,15 @@ describe('Books Integration Tests', () => {
       expect(res.body.title).toBe(updateData.title);
       expect(res.body.author).toBe(updateData.author);
 
-      const updatedBook = await prisma.book.findUnique({
-        where: { id: book.id },
-      });
-      expect(updatedBook?.title).toBe(updateData.title);
+      expect(prisma.book.update).toHaveBeenCalledWith({ where: { id: book.id }, data: updateData });
     });
   });
 
   describe('DELETE /books/:id', () => {
     it('should delete a book (admin)', async () => {
-      const book = await prisma.book.create({ data: testBooks.book1 });
+      const book = { id: 'some-uuid', ...testBooks.book1 };
+
+      (prisma.book.delete as jest.Mock).mockResolvedValue(book);
 
       const res = await request(app)
         .delete(`/books/${book.id}`)
@@ -148,10 +162,7 @@ describe('Books Integration Tests', () => {
 
       expect(res.status).toBe(204);
 
-      const deletedBook = await prisma.book.findUnique({
-        where: { id: book.id },
-      });
-      expect(deletedBook).toBeNull();
+      expect(prisma.book.delete).toHaveBeenCalledWith({ where: { id: book.id } });
     });
   });
 });

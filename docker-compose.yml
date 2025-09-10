@@ -12,3 +12,8 @@ services:
 
 volumes:
   library_pg_data:
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: ./data
